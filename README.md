@@ -243,6 +243,7 @@ Word-Embeddings-NLP/
 ├── requirements.txt                           # Pinned dependency versions
 ├── .gitignore                                 # Excludes FOVL_Output/ build artifacts
 ├── Word-Similarity-Datasets-for-Indian-Languages-master.zip
+├── FOVL_Word_Embeddings_Submission.zip       # Notebook, report, t-SNE figures, result tables (no models/embeddings)
 │
 ├── docs/
 │   ├── images/                                # Figures referenced by this README
