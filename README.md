@@ -250,8 +250,10 @@ Word-Embeddings-NLP/
 │   │   ├── ablation_chart.png                 # E1–E4 across Hindi and Tamil
 │   │   └── tsne_{language}.png                # t-SNE projections (×7)
 │   └── report/
-│       ├── Experimental_Report.pdf            # Final experimental report
-│       └── Experimental_Report.docx           # Editable source of the report
+│       ├── Experimental_Report.pdf            # Final report (IEEE format, 5 pages)
+│       ├── Experimental_Report_Detailed.pdf   # Extended 9-page report
+│       ├── Experimental_Report_Detailed.docx  # Editable version of the extended report
+│       └── latex/                             # LaTeX source and figures for the IEEE report
 │
 └── FOVL_Output/                               # Generated at runtime
     ├── benchmark/            # 7 extracted *-WS.txt evaluation files
