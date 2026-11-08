@@ -320,29 +320,31 @@ indic-word-embeddings/
 
 ---
 
-## Screenshots & Demo
+## Results & Visualizations
 
-> Replace the placeholders below with your generated figures from `FOVL_Output/figures/`.
+### Per-language Spearman correlation
 
-**t-SNE embedding space — Hindi (100 words, 300-D → 2-D)**
+![Spearman correlation by language, with vocabulary coverage](docs/images/results_chart.png)
 
-![Hindi t-SNE](docs/images/tsne_hindi.png)
+Gujarati leads at ρ = 0.3233. Notably, correlation does **not** track vocabulary coverage — Urdu has the highest coverage (86.3 %) but the lowest correlation, indicating that corpus *quality and domain match* matter more than raw vocabulary hit rate.
 
-**t-SNE embedding space — Tamil**
+### Ablation study
 
-![Tamil t-SNE](docs/images/tsne_tamil.png)
+![Ablation across window size, epoch budget, and n-gram range](docs/images/ablation_chart.png)
 
-**Per-language Spearman correlation**
+The two languages respond to opposite interventions. Hindi improves 63 % from doubling the epoch budget; Tamil improves 55 % from longer character n-grams and is actively *hurt* by the wider context window that helps Hindi.
 
-![Results chart](docs/images/results_chart.png)
+### Embedding space — t-SNE projections
 
-**Ablation study — window, epochs, and n-gram range**
+100 vocabulary words per language, projected 300-D → 2-D. Points are labelled with numeric IDs rather than the words themselves, because most environments lack fonts for all seven scripts; each figure ships with a `tsne_{Language}_word_labels.csv` mapping IDs back to words and coordinates.
 
-![Ablation chart](docs/images/ablation_chart.png)
+| Hindi | Tamil |
+|---|---|
+| ![Hindi t-SNE](docs/images/tsne_hindi.png) | ![Tamil t-SNE](docs/images/tsne_tamil.png) |
 
-**Notebook walkthrough**
+Projections for all seven languages are in [`docs/images/`](docs/images/). The distributions are diffuse rather than tightly clustered — consistent with the modest correlation scores and a 5,000-document-per-language training budget.
 
-![Pipeline demo](docs/images/pipeline_demo.gif)
+> **Optional:** add a short screen recording of the smoke test as `docs/images/pipeline_demo.gif` and reference it here.
 
 ---
 
