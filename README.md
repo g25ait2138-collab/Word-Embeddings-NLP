@@ -24,7 +24,7 @@ The engineering focus is on three things that matter more than a leaderboard num
 2. **Data integrity over convenience.** The public benchmark contains real defects: mixed delimiters, 149 rows with missing human scores, a blank word field, UTF-8 BOMs. The pipeline preserves every row in its original order and excludes defects only from the correlation statistic — it never silently repairs or drops data.
 3. **Verifiable reproducibility.** A fixed seed, a fast smoke test, and a strict final validator that refuses to produce a submission package unless every array shape, dtype, finiteness check, and word-pair ordering constraint passes.
 
-**Headline result:** macro-average Spearman **ρ = 0.2214** across all seven languages, with **67.5–86.3 % vocabulary coverage** and **zero dropped word pairs**.
+**Headline result:** macro-average Spearman **ρ = 0.2190** across all seven languages, with **67.5–86.3 % vocabulary coverage** and **zero dropped word pairs**.
 
 ---
 
@@ -49,14 +49,14 @@ The engineering focus is on three things that matter more than a leaderboard num
 
 | Language | Pairs (N) | Scored | Spearman ρ | p-value | Coverage | OOV rate |
 |----------|----------:|-------:|-----------:|--------:|---------:|---------:|
-| Gujarati | 163 | 163 | **0.3233** | 0.00003 | 79.6 % | 20.4 % |
-| Punjabi  | 143 | 143 | **0.2599** | 0.0017  | 82.5 % | 17.5 % |
-| Telugu   | 111 | 111 | **0.2283** | 0.0159  | 67.5 % | 32.5 % |
-| Tamil    |  97 |  96 | **0.1984** | 0.0527  | 75.0 % | 25.0 % |
-| Hindi    | 235 | 235 | **0.1865** | 0.0041  | 80.8 % | 19.2 % |
-| Marathi  | 253 | 104 | **0.1841** | 0.0614  | 74.2 % | 25.8 % |
-| Urdu     | 100 | 100 | **0.1692** | 0.0924  | 86.3 % | 13.7 % |
-| **Macro-average** | **1,102** | **952** | **0.2214** | — | **77.9 %** | **22.1 %** |
+| Gujarati | 163 | 163 | **0.3084** | 0.00006 | 79.6 % | 20.4 % |
+| Punjabi  | 143 | 143 | **0.2540** | 0.0022  | 82.5 % | 17.5 % |
+| Telugu   | 111 | 111 | **0.2258** | 0.0172  | 67.5 % | 32.5 % |
+| Urdu     | 100 | 100 | **0.2125** | 0.0337  | 86.3 % | 13.7 % |
+| Hindi    | 235 | 235 | **0.1901** | 0.0034  | 80.8 % | 19.2 % |
+| Tamil    |  97 |  96 | **0.1846** | 0.0718  | 75.0 % | 25.0 % |
+| Marathi  | 253 | 104 | **0.1571** | 0.1111  | 74.2 % | 25.8 % |
+| **Macro-average** | **1,102** | **952** | **0.2190** | — | **78.0 %** | **22.0 %** |
 
 Every one of the 1,102 benchmark pairs is represented in the exported embedding arrays. Rows with missing human scores or blank word fields are retained in the arrays and excluded only from the correlation computation.
 
@@ -64,12 +64,12 @@ Every one of the 1,102 benchmark pairs is represented in the exported embedding 
 
 | Experiment | Window | Epochs | n-grams | Hindi ρ | Tamil ρ |
 |------------|-------:|-------:|--------:|--------:|--------:|
-| E1 — baseline | 5 | 15 | 2–5 | 0.1928 | 0.1940 |
-| E2 — wider window | 10 | 15 | 2–5 | 0.2690 | 0.1776 |
-| E3 — longer training | 5 | 30 | 2–5 | **0.3147** | 0.1911 |
-| E4 — larger n-grams | 5 | 15 | 3–6 | 0.1481 | **0.3007** |
+| E1 — baseline | 5 | 15 | 2–5 | 0.1982 | 0.1988 |
+| E2 — wider window | 10 | 15 | 2–5 | 0.2654 | 0.1847 |
+| E3 — longer training | 5 | 30 | 2–5 | **0.3181** | 0.1401 |
+| E4 — larger n-grams | 5 | 15 | 3–6 | 0.1564 | **0.2891** |
 
-**Finding:** no single configuration wins across languages. Hindi gains **+63 %** from doubling the epoch budget, while Tamil — far more agglutinative — gains **+55 %** from longer character n-grams and is actively hurt by a wider context window. This is direct evidence that hyperparameters for Indic NLP must be tuned per-language rather than inherited from English defaults.
+**Finding:** no single configuration wins across languages. Hindi gains **+61 %** from doubling the epoch budget — the same change costs Tamil **30 %** — while Tamil, far more agglutinative, gains **+45 %** from longer character n-grams, which gives Hindi its worst result. This is direct evidence that hyperparameters for Indic NLP must be tuned per-language rather than inherited from English defaults.
 
 ---
 
@@ -211,10 +211,10 @@ print(arrays.shape)               # (3, 2, 300)
 
 ```python
 print(predict_similarity(pairs, language='Hindi'))
-# [0.6796  0.8961  0.6332]
+# [0.6843  0.8966  0.6239]
 ```
 
-The inflected OOV form `विद्यालयों` scores **0.896** against its base form `विद्यालय` — the subword model recovers the morphological relationship without ever having seen that surface form.
+The inflected OOV form `विद्यालयों` scores **0.897** against its base form `विद्यालय` — the subword model recovers the morphological relationship without ever having seen that surface form.
 
 ### Reload a trained model for private evaluation
 
@@ -228,7 +228,7 @@ print(model.wv.vector_size)       # 300
 ```python
 result, arrays, sims, resolver = evaluate_language('Gujarati', model)
 print(f"ρ = {result['Spearman']:.4f} | coverage = {result['Coverage']:.1%}")
-# ρ = 0.3233 | coverage = 79.6%
+# ρ = 0.3084 | coverage = 79.6%
 ```
 
 ---
@@ -336,13 +336,13 @@ Word-Embeddings-NLP/
 
 ![Spearman correlation by language, with vocabulary coverage](docs/images/results_chart.png)
 
-Gujarati leads at ρ = 0.3233. Notably, correlation does **not** track vocabulary coverage — Urdu has the highest coverage (86.3 %) but the lowest correlation, indicating that corpus *quality and domain match* matter more than raw vocabulary hit rate.
+Gujarati leads at ρ = 0.3084 and Marathi trails at 0.1571. Notably, correlation does **not** track vocabulary coverage — Urdu has the highest coverage (86.3 %) but ranks only fourth, while Telugu has the lowest coverage (67.5 %) yet ranks third, indicating that corpus *quality and domain match* matter more than raw vocabulary hit rate.
 
 ### Ablation study
 
 ![Ablation across window size, epoch budget, and n-gram range](docs/images/ablation_chart.png)
 
-The two languages respond to opposite interventions. Hindi improves 63 % from doubling the epoch budget; Tamil improves 55 % from longer character n-grams and is actively *hurt* by the wider context window that helps Hindi.
+The two languages respond to opposite interventions. Hindi improves 61 % from doubling the epoch budget, which *hurts* Tamil by 30 %; Tamil improves 45 % from longer character n-grams, which gives Hindi its worst result.
 
 ### Embedding space — t-SNE projections
 
@@ -360,10 +360,10 @@ Projections for all seven languages are in [`docs/images/`](docs/images/). The d
 
 ## Resume-Ready Impact Points
 
-- Trained and evaluated **7 monolingual 300-D FastText embedding models from scratch** across 7 Indian languages and scripts on a **118K-document** corpus, achieving a **0.2214 macro-average Spearman correlation** against human similarity judgments.
+- Trained and evaluated **7 monolingual 300-D FastText embedding models from scratch** across 7 Indian languages and scripts on a **118K-document** corpus, achieving a **0.2190 macro-average Spearman correlation** against human similarity judgments.
 - Engineered a **subword + frequency-weighted-fallback OOV strategy** delivering **100 % word-pair coverage** on a benchmark where **13–33 % of vocabulary was unseen**, satisfying a hard no-discard constraint.
 - Built a **defect-tolerant Unicode data pipeline** (NFC normalization, multi-script regex tokenization, delimiter sniffing, BOM handling) that preserved all **1,102 benchmark pairs** in original order while isolating 150 malformed rows from the reported statistic.
-- Ran a **controlled 4-configuration ablation** that lifted Hindi correlation by **63 %** and Tamil by **55 %**, demonstrating that Indic embedding hyperparameters must be tuned per-language rather than inherited from English defaults.
+- Ran a **controlled 4-configuration ablation** that lifted Hindi correlation by **61 %** and Tamil by **45 %**, demonstrating that Indic embedding hyperparameters must be tuned per-language rather than inherited from English defaults.
 - Implemented **assertion-driven validation gating** across array shape, dtype, finiteness, and ordering invariants, plus a smoke-test tier that cut configuration-error turnaround from ~40 minutes to ~3.
 
 ---
