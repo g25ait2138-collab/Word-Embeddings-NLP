@@ -158,9 +158,8 @@ cd indic-word-embeddings
 python -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
 
-# Dependencies
-pip install -U datasets huggingface_hub gensim scipy scikit-learn \
-               matplotlib pandas regex tabulate
+# Dependencies (pinned)
+pip install -r requirements.txt
 
 # Place the benchmark archive in the project root, then:
 jupyter notebook FOVL_Word_Embeddings_Final_English.ipynb
@@ -241,7 +240,15 @@ indic-word-embeddings/
 ├── FOVL_Word_Embeddings_Final_English.ipynb   # Complete pipeline (single notebook)
 ├── README.md
 ├── LICENSE
+├── requirements.txt                           # Pinned dependency versions
+├── .gitignore                                 # Excludes FOVL_Output/ build artifacts
 ├── Word-Similarity-Datasets-for-Indian-Languages-master.zip
+│
+├── docs/
+│   └── images/                                # Figures referenced by this README
+│       ├── results_chart.png                  # Per-language Spearman + coverage
+│       ├── ablation_chart.png                 # E1–E4 across Hindi and Tamil
+│       └── tsne_{language}.png                # t-SNE projections (×7)
 │
 └── FOVL_Output/                               # Generated at runtime
     ├── benchmark/            # 7 extracted *-WS.txt evaluation files
