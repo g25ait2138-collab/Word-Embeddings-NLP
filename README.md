@@ -245,10 +245,13 @@ Word-Embeddings-NLP/
 ├── Word-Similarity-Datasets-for-Indian-Languages-master.zip
 │
 ├── docs/
-│   └── images/                                # Figures referenced by this README
-│       ├── results_chart.png                  # Per-language Spearman + coverage
-│       ├── ablation_chart.png                 # E1–E4 across Hindi and Tamil
-│       └── tsne_{language}.png                # t-SNE projections (×7)
+│   ├── images/                                # Figures referenced by this README
+│   │   ├── results_chart.png                  # Per-language Spearman + coverage
+│   │   ├── ablation_chart.png                 # E1–E4 across Hindi and Tamil
+│   │   └── tsne_{language}.png                # t-SNE projections (×7)
+│   └── report/
+│       ├── Experimental_Report.pdf            # Final experimental report
+│       └── Experimental_Report.docx           # Editable source of the report
 │
 └── FOVL_Output/                               # Generated at runtime
     ├── benchmark/            # 7 extracted *-WS.txt evaluation files
