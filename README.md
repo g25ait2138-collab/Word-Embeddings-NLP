@@ -151,8 +151,8 @@ Every one of the 1,102 benchmark pairs is represented in the exported embedding 
 
 ```bash
 # Clone
-git clone https://github.com/<your-username>/indic-word-embeddings.git
-cd indic-word-embeddings
+git clone https://github.com/g25ait2138-collab/Word-Embeddings-NLP.git
+cd Word-Embeddings-NLP
 
 # Virtual environment
 python -m venv .venv
@@ -236,7 +236,7 @@ print(f"ρ = {result['Spearman']:.4f} | coverage = {result['Coverage']:.1%}")
 ## Folder Structure
 
 ```
-indic-word-embeddings/
+Word-Embeddings-NLP/
 ├── FOVL_Word_Embeddings_Final_English.ipynb   # Complete pipeline (single notebook)
 ├── README.md
 ├── LICENSE
@@ -408,6 +408,6 @@ All embeddings were trained from scratch using **IndicCorpV2-5k only**. No pre-t
 
 ---
 
-**Author:** Alok Sahni · [GitHub](https://github.com/<your-username>) · [LinkedIn](https://linkedin.com/in/<your-handle>) · aloksahni04@gmail.com
+**Author:** Alok Sahni · [GitHub](https://github.com/g25ait2138-collab) · [LinkedIn](https://linkedin.com/in/<your-handle>) · aloksahni04@gmail.com
 
 *Developed as part of the Foundations of Vision and Language coursework, PGDAI, IIT Jodhpur.*
