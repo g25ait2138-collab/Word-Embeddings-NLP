@@ -143,7 +143,7 @@ Every one of the 1,102 benchmark pairs is represented in the exported embedding 
 
 ### Option A — Google Colab (recommended)
 
-1. Upload `FOVL_Word_Embeddings_Final_English.ipynb` to [Google Colab](https://colab.research.google.com).
+1. Upload `FOVL_Word_Embeddings_G25AIT2138.ipynb` to [Google Colab](https://colab.research.google.com).
 2. Upload `Word-Similarity-Datasets-for-Indian-Languages-master.zip` to the Colab **Files** panel.
 3. **Runtime → Run all.** Dependencies install in the first cell.
 
@@ -162,7 +162,7 @@ source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
 # Place the benchmark archive in the project root, then:
-jupyter notebook FOVL_Word_Embeddings_Final_English.ipynb
+jupyter notebook FOVL_Word_Embeddings_G25AIT2138.ipynb
 ```
 
 ### Recommended run order
@@ -237,7 +237,7 @@ print(f"ρ = {result['Spearman']:.4f} | coverage = {result['Coverage']:.1%}")
 
 ```
 Word-Embeddings-NLP/
-├── FOVL_Word_Embeddings_Final_English.ipynb   # Complete pipeline (single notebook)
+├── FOVL_Word_Embeddings_G25AIT2138.ipynb      # Complete pipeline (single notebook)
 ├── README.md
 ├── LICENSE
 ├── requirements.txt                           # Pinned dependency versions
