@@ -41,7 +41,7 @@ g25ait2138@iitj.ac.in}
 \maketitle
 
 \begin{abstract}
-This paper trains and evaluates 300-dimensional word embeddings for seven Indian languages---Gujarati, Hindi, Marathi, Punjabi, Tamil, Telugu and Urdu---spanning six writing systems. One FastText Skip-gram model per language is trained from random initialisation on the IndicCorpV2-5k corpus only, with no pre-trained vectors. A layered out-of-vocabulary (OOV) resolver guarantees a valid vector for every benchmark word, so no word pair is discarded. Evaluated against the human similarity judgements of Akhtar et al., the models reach a macro-average Spearman correlation of $\rho = 0.2190$, ranging from 0.1571 (Marathi) to 0.3084 (Gujarati). A controlled ablation on Hindi and Tamil shows that the two languages respond best to opposite hyperparameter changes, and that vocabulary coverage is a weak predictor of embedding quality.
+This report trains and evaluates 300-dimensional word embeddings for seven Indian languages---Gujarati, Hindi, Marathi, Punjabi, Tamil, Telugu and Urdu---spanning six writing systems. One FastText Skip-gram model per language is trained from random initialisation on the IndicCorpV2-5k corpus only, with no pre-trained vectors. A layered out-of-vocabulary (OOV) resolver guarantees a valid vector for every benchmark word, so no word pair is discarded. Evaluated against the human similarity judgements of Akhtar et al., the models reach a macro-average Spearman correlation of $\rho = 0.2190$, ranging from 0.1571 (Marathi) to 0.3084 (Gujarati). A controlled ablation on Hindi and Tamil shows that the two languages respond best to opposite hyperparameter changes, and that vocabulary coverage is a weak predictor of embedding quality.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -229,7 +229,7 @@ The pipeline is a single Colab notebook, seeded with 42 throughout. For every la
 Before packaging, a validator checks every language for (i) array shape $(N, 2, 300)$ and dtype float32, (ii) finite values and non-zero vector norms, (iii) exact agreement between the stored pair order and the benchmark file, and (iv) successful model reload with OOV inference on an unseen word. The final archive is created only if every check passes; in this run it holds 49 files.
 
 \subsection{Data Sources and External-Resource Disclosure}
-\textit{Training data:} \texttt{rony000013/indiccorpV2-5k} only~\cite{doddapaneni2023}. No pre-trained word embeddings, no external training corpora, and no use of the benchmark's human scores for training or supervised optimisation. \textit{Evaluation data:} the word-similarity datasets of Akhtar et al.~\cite{akhtar2017}, used only to compute the reported correlations. \textit{Tools:} Python, Gensim (FastText), NumPy, SciPy, Hugging Face \texttt{datasets}, \texttt{regex}, pandas, Matplotlib and scikit-learn (t-SNE). All links are listed under Project Resources at the end of this report.
+\textit{Training data:} \texttt{rony000013/indiccorpV2-5k} only~\cite{doddapaneni2023}. No pre-trained word embeddings, no external training corpora, and no use of the benchmark's human scores for training or supervised optimisation. \textit{Evaluation data:} the word-similarity datasets of Akhtar et al.~\cite{akhtar2017}, used only to compute the reported correlations. \textit{Tools:} Python, Gensim (FastText), NumPy, SciPy, Hugging Face \texttt{datasets}, \texttt{regex}, pandas, Matplotlib and scikit-learn (t-SNE). All links are listed under Resources at the end of this report.
 
 \section{t-SNE Visualization}
 \begin{figure*}[!t]
@@ -448,7 +448,7 @@ Seven monolingual 300-dimensional FastText models trained from scratch on IndicC
 \end{thebibliography}
 \endgroup
 
-\section*{Project Resources}
+\section*{Resources}
 \begin{center}
 \renewcommand{\arraystretch}{1.3}
 \scriptsize
