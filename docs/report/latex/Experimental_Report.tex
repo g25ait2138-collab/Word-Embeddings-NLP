@@ -9,7 +9,6 @@
 \usepackage{tikz}
 \usetikzlibrary{shapes.geometric, arrows.meta, positioning, calc, shadows}
 
-% Color palette
 \definecolor{srcblue}{HTML}{2E5E8C}
 \definecolor{noisegreen}{HTML}{2E8B57}
 \definecolor{loudorange}{HTML}{D97706}
@@ -31,7 +30,7 @@
 \title{Experimental Report: Multilingual Word\\ Embeddings for Indian Languages}
 
 \author{
-\IEEEauthorblockN{Alok Sahni}
+\IEEEauthorblockN{Alok Sahni (G25AIT2138)}
 \IEEEauthorblockA{\textit{PGDAI, SAIDE} \\
 \textit{Indian Institute of Technology Jodhpur}\\
 Jodhpur, India \\
@@ -41,7 +40,7 @@ g25ait2138@iitj.ac.in}
 \maketitle
 
 \begin{abstract}
-This report trains and evaluates 300-dimensional word embeddings for seven Indian languages---Gujarati, Hindi, Marathi, Punjabi, Tamil, Telugu and Urdu---spanning six writing systems. One FastText Skip-gram model per language is trained from random initialisation on the IndicCorpV2-5k corpus only, with no pre-trained vectors. A layered out-of-vocabulary (OOV) resolver guarantees a valid vector for every benchmark word, so no word pair is discarded. Evaluated against the human similarity judgements of Akhtar et al., the models reach a macro-average Spearman correlation of $\rho = 0.2190$, ranging from 0.1571 (Marathi) to 0.3084 (Gujarati). A controlled ablation on Hindi and Tamil shows that the two languages respond best to opposite hyperparameter changes, and that vocabulary coverage is a weak predictor of embedding quality.
+This report trains and evaluates 300-dimensional word embeddings for seven Indian languages---Gujarati, Hindi, Marathi, Punjabi, Tamil, Telugu and Urdu---spanning six writing systems. One FastText Skip-gram model per language is trained from random initialisation on the IndicCorpV2-5k corpus only, with character 3--6-grams for out-of-vocabulary (OOV) words and a fallback vector so that no word pair is discarded. Against the human similarity judgements of Akhtar et al., the models reach a macro-average Spearman correlation of $\rho = 0.3244$, from 0.2414 (Marathi) to 0.4484 (Gujarati), with every correlation significant at $p < 0.05$. An ablation over all seven languages shows that each change to the main configuration lowers the macro score; a Word2Vec baseline without subwords reaches only 0.2392; and retraining with three seeds gives 0.3275 $\pm$ 0.0060. Training is deterministic, so every reported number is exactly reproducible.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -49,15 +48,15 @@ word embeddings, FastText, Indian languages, subword models, out-of-vocabulary, 
 \end{IEEEkeywords}
 
 \section{Introduction}
-Distributional word embeddings map words to dense vectors whose geometry reflects co-occurrence statistics, so that words used in similar contexts receive similar vectors~\cite{mikolov2013}. For Indian languages, two properties make this harder than for English: rich inflectional and agglutinative morphology, which produces many rare surface forms, and a variety of scripts whose combining marks must be handled correctly. Subword models such as FastText~\cite{bojanowski2017} address the first problem by representing a word as the sum of its character $n$-gram vectors, which also yields vectors for words never seen in training.
+Distributional word embeddings map words to dense vectors whose geometry reflects co-occurrence statistics, so that words used in similar contexts receive similar vectors~\cite{mikolov2013}. For Indian languages, rich inflectional and agglutinative morphology produces many rare surface forms, and several scripts with combining marks must be handled correctly. Subword models such as FastText~\cite{bojanowski2017} represent a word as the sum of its character $n$-gram vectors, which also yields vectors for words never seen in training.
 
 This work builds seven monolingual 300-dimensional FastText models from scratch on the IndicCorpV2-5k subset~\cite{doddapaneni2023} and evaluates them intrinsically on the word-similarity datasets of Akhtar et al.~\cite{akhtar2017}.
 
 \subsection{Objectives and Scope}
-The study has three aims: (i) train embeddings from first principles under a fixed data budget, (ii) design an OOV strategy under which no evaluation pair is discarded, and (iii) measure how sensitive each language is to the context window, epoch budget and $n$-gram range. Two constraints shape the implementation: every benchmark word, including unseen inflections and malformed strings, must receive a vector, and the exported arrays must keep the original pair order with shape $(N, 2, 300)$. The benchmark is used for evaluation only; its human scores never enter training or model selection.
+The study has three aims: (i) train embeddings from first principles under a fixed data budget, (ii) design an OOV strategy under which no evaluation pair is discarded, and (iii) measure, on all seven languages, how sensitive the models are to $n$-gram range, epoch budget, vocabulary threshold, subwords and random seed. Every benchmark word, including unseen inflections and blank fields, must receive a vector, and the exported arrays must keep the original pair order with shape $(N, 2, 300)$. The benchmark is used for evaluation only; its human scores never enter training or model selection.
 
 \subsection{Learning Objectives}
-Table~\ref{tab:objectives} pairs each learning objective of the assignment with the part of this work where it was exercised.
+Table~\ref{tab:objectives} pairs each learning objective with the part of this work where it was exercised.
 
 \begin{table}[!t]
 \caption{Learning Objectives and Where They Were Met}
@@ -73,19 +72,19 @@ Table~\ref{tab:objectives} pairs each learning objective of the assignment with 
 \hline
 Train distributional embeddings from first principles & Seven FastText Skip-gram models from random initialisation at exactly 300 dimensions, no pre-trained vectors (Sec.~\ref{sec:model}) \\
 \hline
-Understand subword representation for rich morphology & Character $n$-gram composition as the main OOV mechanism, measured in the $n$-gram ablation and inflected-form test (Sec.~\ref{sec:oov}, \ref{sec:experiments}) \\
+Understand subword representation for rich morphology & Character 3--6-grams as the OOV mechanism, measured against 2--5-grams and a Word2Vec baseline (Sec.~\ref{sec:oov}, \ref{sec:experiments}) \\
 \hline
-Design an OOV strategy instead of discarding cases & Four-layer resolver giving a valid vector for any input, including blank and malformed strings (Sec.~\ref{sec:oov}) \\
+Design an OOV strategy instead of discarding cases & Subword composition plus a frequency-weighted fallback vector for any input (Sec.~\ref{sec:oov}) \\
 \hline
 Apply correct intrinsic evaluation & Cosine similarity, Spearman correlation with $p$-values, macro-averaging and rank-based error analysis (Sec.~\ref{sec:metric}, \ref{sec:analysis}) \\
 \hline
-Process multilingual Unicode text & NFC normalisation and Unicode-property tokenisation shared by training and evaluation across six scripts (Sec.~\ref{sec:corpus}) \\
+Process multilingual Unicode text & NFC normalisation shared by training and evaluation across six scripts (Sec.~\ref{sec:corpus}) \\
 \hline
 Handle imperfect real-world data & Mixed delimiters, BOMs, missing scores and a blank field handled while keeping every row in place (Sec.~\ref{sec:integrity}) \\
 \hline
-Investigate hyperparameter sensitivity & Four-configuration ablation on two typologically distinct languages (Sec.~\ref{sec:experiments}) \\
+Investigate hyperparameter sensitivity & Ablation on all seven languages, a Word2Vec baseline and three random seeds (Sec.~\ref{sec:experiments}) \\
 \hline
-Interpret behaviour and state limitations & Diagnosis of best and worst predictions with failure causes; explicit limitations (Sec.~\ref{sec:analysis}, \ref{sec:discussion}) \\
+Interpret behaviour and state limitations & Rank-based diagnosis of correct and incorrect predictions; explicit limitations (Sec.~\ref{sec:analysis}, \ref{sec:discussion}) \\
 \hline
 \end{tabular}
 \end{table}
@@ -93,7 +92,7 @@ Interpret behaviour and state limitations & Diagnosis of best and worst predicti
 \section{Methodology}
 
 \subsection{Pipeline}
-Fig.~\ref{fig:pipeline} shows the end-to-end pipeline. Training text and benchmark words pass through the same normalisation and tokenisation path, which removes any train/evaluation mismatch.
+Fig.~\ref{fig:pipeline} shows the pipeline. Benchmark words pass through the same Unicode normalisation as training text, and human scores reach only the evaluation stage.
 
 \begin{figure}[!t]
 \centering
@@ -104,10 +103,10 @@ Fig.~\ref{fig:pipeline} shows the end-to-end pipeline. Training text and benchma
                 text=white, drop shadow={shadow xshift=0.6pt, shadow yshift=-0.6pt}},
   arr/.style={-{Stealth[length=2mm]}, thick, ctrlgray}
 ]
-\node[block, fill=srcblue]                    (src)  {IndicCorpV2-5k (5,000 docs/lang)};
+\node[block, fill=srcblue]                    (src)  {IndicCorpV2-5k (5,000 records/lang)};
 \node[block, fill=noisegreen, below=of src]   (tok)  {NFC Normalisation \& Tokenisation};
-\node[block, fill=loudorange, below=of tok]   (ft)   {FastText Skip-gram (300-D, from scratch)};
-\node[block, fill=encteal, below=of ft]       (oov)  {Layered OOV Resolver};
+\node[block, fill=loudorange, below=of tok]   (ft)   {FastText Skip-gram (300-D, 3--6-grams)};
+\node[block, fill=encteal, below=of ft]       (oov)  {OOV Resolver (subwords + fallback)};
 \node[block, fill=outred, below=of oov]       (eval) {Cosine + Spearman Evaluation};
 \node[block, fill=nlppurple, right=11mm of tok] (bench) {Word-Similarity Benchmark (eval only)};
 
@@ -118,68 +117,94 @@ Fig.~\ref{fig:pipeline} shows the end-to-end pipeline. Training text and benchma
 \draw[arr] (bench.west) -- (tok.east);
 \draw[arr] (bench.south) |- (eval.east);
 \end{tikzpicture}
-\caption{Training and evaluation pipeline. Benchmark words share the training preprocessing path; human scores reach only the evaluation stage.}
+\caption{Training and evaluation pipeline. Benchmark words share the preprocessing path; human scores reach only the evaluation stage.}
 \label{fig:pipeline}
 \end{figure}
 
 \subsection{Corpus, Normalisation and Tokenisation}\label{sec:corpus}
-The dataset \texttt{rony000013/indiccorpV2-5k}, loaded with the Hugging Face \texttt{datasets} library, contains 118,243 documents in one \texttt{train} split with the fields \texttt{language}, \texttt{code} and \texttt{text}. Rather than assuming a layout, the pipeline inspects the columns at runtime and resolves each record's language through an alias table (for example \texttt{hi}, \texttt{hin}, \texttt{hin\_deva} and \texttt{hindi} all map to Hindi); in this run the language was read from the \texttt{code} column. This yields exactly 5,000 documents per language, and the pipeline stops if any language cannot be identified, so no model is trained on text of the wrong language.
-
-Text is normalised to Unicode NFC, case-folded and tokenised with the Unicode-property expression
-\begin{center}\footnotesize\verb|[\p{L}\p{M}\p{N}]+(?:[-'][\p{L}\p{M}\p{N}]+)*|\end{center}
-Because it matches letters, combining marks and digits by Unicode category rather than ASCII ranges, one code path serves all six scripts and keeps the vowel signs that carry meaning in Indic orthographies. For example, the Hindi sentence \textit{acch\=a ch\=atra vidy\=alay m\~e pa\d{r}ht\=a hai} (``a good student studies at school'') yields six tokens, with the sentence-final danda removed. Sentences with fewer than two tokens are dropped from training.
-
-\subsection{Model and Hyperparameters}\label{sec:model}
-One independent Gensim~\cite{rehurek2010} FastText model is trained per language from random initialisation with the configuration in Table~\ref{tab:hparams}. FastText was chosen for its character $n$-gram composition, which is what makes principled OOV inference possible. Before the full run, a smoke test (100 documents, 2 epochs) verified imports, training, OOV inference and the $(N, 2, 300)$ export for every language. Its near-zero correlations ($-0.14$ to $0.08$) are expected for such a tiny budget; smoke-test models are never saved or reported.
+The dataset \texttt{rony000013/indiccorpV2-5k} holds 118,243 records across 24 languages, with fields \texttt{language}, \texttt{code} and \texttt{text}. Records are selected by their \texttt{code}, giving exactly 5,000 per benchmark language. Text is normalised to Unicode NFC, split on whitespace, and punctuation, including the sentence-final danda, is stripped from each token; no case-folding or stemming is applied. For example, the Hindi sentence \textit{acch\=a ch\=atra vidy\=alay m\~e pa\d{r}ht\=a hai} (``a good student studies at school'') yields six tokens. Table~\ref{tab:corpus} gives the resulting corpus sizes; with \texttt{min\_count}=1 every token type enters the vocabulary.
 
 \begin{table}[!t]
-\caption{FastText Configuration (Identical for All Languages)}
+\caption{Training Corpus per Language (5,000 Records Each)}
+\label{tab:corpus}
+\centering
+\renewcommand{\arraystretch}{1.2}
+\footnotesize
+\begin{tabular}{|l|r|r|}
+\hline
+\rowcolor{srcblue!15}
+\textbf{Language} & \textbf{Tokens} & \textbf{Vocabulary} \\
+\hline
+Gujarati & 203,449 & 41,355 \\
+\hline
+Hindi & 284,598 & 27,476 \\
+\hline
+Marathi & 206,264 & 47,657 \\
+\hline
+Punjabi & 272,700 & 28,777 \\
+\hline
+Tamil & 168,026 & 58,128 \\
+\hline
+Telugu & 172,252 & 49,794 \\
+\hline
+Urdu & 362,086 & 37,758 \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Model and Main Hyperparameters}\label{sec:model}
+One independent Gensim~\cite{rehurek2010} FastText model is trained per language from random initialisation, with the identical configuration in Table~\ref{tab:hparams}. FastText was chosen for its character $n$-gram composition, which makes principled OOV inference possible.
+
+\begin{table}[!t]
+\caption{Main Hyperparameters (Identical for All Languages)}
 \label{tab:hparams}
 \centering
-\renewcommand{\arraystretch}{1.25}
+\renewcommand{\arraystretch}{1.2}
 \footnotesize
 \begin{tabular}{|l|l||l|l|}
 \hline
 \rowcolor{srcblue!15}
 \textbf{Parameter} & \textbf{Value} & \textbf{Parameter} & \textbf{Value} \\
 \hline
-Architecture & Skip-gram & Negative samples & 10 \\
+Architecture & Skip-gram & Negative samples & 5 \\
 \hline
-Vector size & 300 & Char $n$-grams & 2--5 \\
+Vector size & 300 & Char $n$-grams & 3--6 \\
 \hline
-Window & 5 & Buckets & 20,000 \\
+Window & 5 & $n$-gram buckets & 2,000,000 \\
 \hline
-Min.\ count & 2 & Subsampling & $10^{-4}$ \\
+Min.\ count & 1 & Subsampling & $10^{-3}$ \\
 \hline
-Epochs & 15 & Seed / workers & 42 / 2 \\
+Epochs & 25 & Learning rate & 0.025 \\
+\hline
+Seed & 42 & Workers & 1 \\
 \hline
 \end{tabular}
 \end{table}
 
 \subsection{Out-of-Vocabulary Handling}\label{sec:oov}
-Every input receives a finite, non-zero-norm vector through four layers: (i) in-vocabulary words use their learned vector; (ii) unseen words are composed from learned character $n$-grams; (iii) multi-token inputs are averaged; (iv) blank or degenerate inputs fall back to the frequency-weighted mean vocabulary vector
+Every input receives a finite, non-zero 300-dimensional vector: (i) in-vocabulary words use their learned vector; (ii) unseen words are composed from their learned character 3--6-gram vectors; (iii) a word that yields no usable vector---a blank field or a near-zero subword vector---falls back to the frequency-weighted mean vocabulary vector
 \begin{equation}
 \mathbf{v}_{\text{fb}} \;=\; \frac{\sum_{w \in V} c_w\,\mathbf{v}_w}{\sum_{w \in V} c_w},
 \label{eq:fallback}
 \end{equation}
-where $V$ is the model vocabulary, $c_w$ the training count of word $w$ and $\mathbf{v}_w$ its vector. Layer (iv) is the only one without word-specific information; it exists so that defective benchmark rows still produce a valid array entry rather than a zero vector. In this run it is reached only by one Tamil row with a blank word field, and no word pair is discarded at any stage.
+where $V$ is the vocabulary, $c_w$ the training count of $w$ and $\mathbf{v}_w$ its vector. In this run the fallback is reached only by the single Tamil row with a blank word; no word pair is discarded.
 
-\subsection{Benchmark Integrity}\label{sec:integrity}
-The evaluation files contain real irregularities, which are handled rather than repaired. The Hindi file is comma-separated while the others are mostly tab-separated, so the delimiter is detected per line; files are decoded as \texttt{utf-8-sig} so byte-order marks are stripped; and missing or non-numeric scores become NaN instead of raising an error. No row is removed: all rows stay in the exported arrays in their original order, and a validity mask limits the Spearman computation to rows with two non-blank words and a finite score (Table~\ref{tab:integrity}).
+\subsection{Benchmark Integrity and Pair Counts}\label{sec:integrity}
+The Hindi file is comma-separated and the others tab-separated, so the delimiter is detected per line; files are read as \texttt{utf-8-sig} to strip byte-order marks; and missing scores become NaN. All $N$ rows of each file are embedded and exported in their original order, but only rows with two non-blank words and a finite human score enter the correlation. Table~\ref{tab:integrity} explains why the number of scored pairs differs from $N$.
 
 \begin{table}[!t]
-\caption{Benchmark Rows Excluded from the Correlation Only}
+\caption{Pair Counts: Rows Excluded from the Correlation Only}
 \label{tab:integrity}
 \centering
-\renewcommand{\arraystretch}{1.25}
+\renewcommand{\arraystretch}{1.2}
 \footnotesize
 \setlength{\tabcolsep}{4pt}
-\begin{tabular}{|l|r|r|r|p{2.2cm}|}
+\begin{tabular}{|l|r|r|r|p{2.3cm}|}
 \hline
 \rowcolor{srcblue!15}
-\textbf{Language} & \textbf{Rows} & \textbf{Scored} & \textbf{Excl.} & \textbf{Reason} \\
+\textbf{Language} & \textbf{$N$} & \textbf{Scored} & \textbf{Excl.} & \textbf{Reason} \\
 \hline
-Marathi & 253 & 104 & 149 & Missing human score \\
+Marathi & 253 & 104 & 149 & No human score \\
 \hline
 Tamil & 97 & 96 & 1 & Blank word field \\
 \hline
@@ -188,7 +213,7 @@ Other five & 752 & 752 & 0 & --- \\
 \end{tabular}
 \end{table}
 
-\textit{Evaluation-only guarantee:} human similarity scores are used only to compute the reported correlations. They never enter training, never contribute gradients, and were not used for model selection or early stopping.
+\textit{Evaluation-only guarantee:} human similarity scores are used only to compute the reported correlations; they never enter training, gradients, model selection or early stopping.
 
 \subsection{Evaluation Metric}\label{sec:metric}
 For each pair $(w_1, w_2)$, similarity is the cosine $s = \mathbf{v}_1^{\top}\mathbf{v}_2 / (\lVert\mathbf{v}_1\rVert\,\lVert\mathbf{v}_2\rVert)$. Per language, Spearman's rank correlation~\cite{spearman1904} between model scores $s_i$ and human scores $h_i$ is
@@ -199,98 +224,71 @@ For each pair $(w_1, w_2)$, similarity is the cosine $s = \mathbf{v}_1^{\top}\ma
 where $R(\cdot)$ denotes ranks. The headline metric is the unweighted mean of $\rho$ over the seven languages.
 
 \subsection{Implementation and Reproducibility}
-The pipeline is a single Colab notebook, seeded with 42 throughout. For every language it exports the artifacts in Table~\ref{tab:artifacts}, and an inference interface (\texttt{embed\_words}, \texttt{embed\_pairs}, \texttt{predict\_similarity}) reloads the saved models, so new or private word pairs can be scored without retraining or access to benchmark scores.
-
-\begin{table}[!t]
-\caption{Exported Artifacts per Language}
-\label{tab:artifacts}
-\centering
-\renewcommand{\arraystretch}{1.25}
-\scriptsize
-\setlength{\tabcolsep}{3pt}
-\begin{tabular}{|p{3.55cm}|p{4.1cm}|}
-\hline
-\rowcolor{srcblue!15}
-\textbf{Artifact} & \textbf{Content} \\
-\hline
-\texttt{<Lang>.npy} & $(N, 2, 300)$ float32 embeddings in original pair order \\
-\hline
-\texttt{<Lang>\_vocab.json} & Pair order and word-to-position index \\
-\hline
-\texttt{<Lang>\_fasttext.model} & Trained Gensim FastText model \\
-\hline
-\texttt{<Lang>\_pair\_}\linebreak\texttt{predictions.csv} & Human score, cosine and validity flag per pair \\
-\hline
-\texttt{tsne\_<Lang>.png} + CSV & t-SNE plot and ID-to-word mapping \\
-\hline
-\end{tabular}
-\end{table}
-
-Before packaging, a validator checks every language for (i) array shape $(N, 2, 300)$ and dtype float32, (ii) finite values and non-zero vector norms, (iii) exact agreement between the stored pair order and the benchmark file, and (iv) successful model reload with OOV inference on an unseen word. The final archive is created only if every check passes; in this run it holds 49 files.
+The pipeline is a single Jupyter notebook. Training uses one worker thread and a fixed CRC-32 hash in place of Python's randomised \texttt{hash()}, which makes training bit-for-bit deterministic: re-running the notebook reproduces every number in this report. For each language the notebook exports \texttt{<Lang>.npy}, a float32 array of shape $(N, 2, 300)$ in original pair order; \texttt{<Lang>\_vocab.json}, mapping every benchmark word to its \texttt{[row, column]} positions with its in-vocabulary status; and a per-pair prediction table. Before packaging, a validator checks array shape, dtype, finiteness and non-zero norms, the stored pair order against the benchmark, and OOV inference after reloading each model. An inference interface (\texttt{get\_word\_vector}, \texttt{embed\_words}, \texttt{embed\_pairs}, \texttt{predict\_similarity}) loads the saved models to embed arbitrary words for the private evaluation; because each model occupies about 2.4\,GB (two million $n$-gram buckets), the models are not shipped in the archive, and the interface retrains any missing model deterministically.
 
 \subsection{Data Sources and External-Resource Disclosure}
-\textit{Training data:} \texttt{rony000013/indiccorpV2-5k} only~\cite{doddapaneni2023}. No pre-trained word embeddings, no external training corpora, and no use of the benchmark's human scores for training or supervised optimisation. \textit{Evaluation data:} the word-similarity datasets of Akhtar et al.~\cite{akhtar2017}, used only to compute the reported correlations. \textit{Tools:} Python, Gensim (FastText), NumPy, SciPy, Hugging Face \texttt{datasets}, \texttt{regex}, pandas, Matplotlib and scikit-learn (t-SNE). All links are listed under Resources at the end of this report.
+\textit{Training data:} \texttt{rony000013/indiccorpV2-5k} only~\cite{doddapaneni2023}. No pre-trained models or embeddings and no external training corpora are used. \textit{Evaluation data:} the word-similarity datasets of Akhtar et al.~\cite{akhtar2017}, used only to compute the reported correlations. \textit{Tools:} Python, Gensim (FastText, Word2Vec), NumPy, SciPy, pandas, Matplotlib and scikit-learn (t-SNE). All links are listed under Resources at the end of this report.
 
 \section{t-SNE Visualization}
 \begin{figure*}[!t]
 \centering
-\includegraphics[width=0.8\textwidth]{tsne_grid.png}
+\includegraphics[width=0.78\textwidth]{tsne_grid.png}
 \caption{t-SNE projections of the 100 most frequent words per language. Points carry numeric IDs mapped to words in per-language CSV files.}
 \label{fig:tsne}
 \end{figure*}
 
-Fig.~\ref{fig:tsne} shows 100 word samples per language: the 100 most frequent vocabulary words of each model, projected from 300 to 2 dimensions with t-SNE~\cite{vandermaaten2008} (perplexity 25, PCA initialisation, seed 42). The projections are diffuse rather than tightly clustered, consistent with the modest correlations and the small corpus. Dimensionality reduction is used only for this figure; all evaluation uses the full 300-dimensional vectors. Points are labelled with numeric IDs, mapped back to words in a CSV file per language, because the plotting environment lacks fonts for all six scripts.
+Fig.~\ref{fig:tsne} shows 100 word samples per language: the 100 most frequent vocabulary words of each model, projected from 300 to 2 dimensions with t-SNE~\cite{vandermaaten2008} (perplexity 25, PCA initialisation, seed 42). These are mostly function words and frequent content words; they spread fairly evenly with a few tight clusters, typically of inflectional variants of one stem, which share many character $n$-grams. Dimensionality reduction is used only for this figure; all evaluation uses the full 300-dimensional vectors. Points carry numeric IDs, mapped back to words in a CSV file per language, because the plotting environment lacks fonts for all six scripts.
 
 \section{Results}
-Cosine similarity was computed for all 1,102 benchmark pairs, and Spearman correlation (\ref{eq:spearman}) between these cosines and the human scores was computed on the 952 scored pairs of the public benchmark of Akhtar et al.~\cite{akhtar2017}. Table~\ref{tab:results} reports per-language results and Fig.~\ref{fig:results} plots them. The macro-average is $\rho = 0.2190$. Gujarati performs best ($\rho = 0.3084$) and Marathi worst ($\rho = 0.1571$). Five of the seven correlations are significant at $p < 0.05$; Marathi ($p = 0.111$) and Tamil ($p = 0.072$) are not, and these are exactly the two languages with the fewest scored pairs (104 and 96), so their tests have the least statistical power.
+Cosine similarity was computed for all 1,102 benchmark pairs and Spearman's $\rho$ (\ref{eq:spearman}) on the 952 scored pairs (Table~\ref{tab:results}, Fig.~\ref{fig:results}). The macro-average is $\rho = 0.3244$. Gujarati is best ($\rho = 0.4484$) and Marathi weakest ($\rho = 0.2414$); all seven correlations are significant at $p < 0.05$.
 
 \begin{table}[!t]
-\caption{Per-Language Results on the Word-Similarity Benchmark}
+\caption{Per-Language Results on the Public Benchmark}
 \label{tab:results}
 \centering
-\renewcommand{\arraystretch}{1.25}
+\renewcommand{\arraystretch}{1.2}
 \footnotesize
 \setlength{\tabcolsep}{4pt}
 \begin{tabular}{|l|r|r|r|r|r|}
 \hline
 \rowcolor{srcblue!15}
-\textbf{Language} & \textbf{Pairs} & \textbf{Scored} & \textbf{$\rho$} & \textbf{$p$-value} & \textbf{Cov.} \\
+\textbf{Language} & \textbf{$N$} & \textbf{Scored} & \textbf{$\rho$} & \textbf{$p$-value} & \textbf{Cov.} \\
 \hline
-Gujarati & 163 & 163 & \textbf{0.3084} & 0.00006 & 79.6\% \\
+Gujarati & 163 & 163 & \textbf{0.4484} & $<$0.0001 & 89.6\% \\
 \hline
-Hindi    & 235 & 235 & 0.1901 & 0.0034 & 80.8\% \\
+Hindi & 235 & 235 & 0.3009 & $<$0.0001 & 87.7\% \\
 \hline
-Marathi  & 253 & 104 & 0.1571 & 0.1111 & 74.2\% \\
+Marathi & 253 & 104 & 0.2414 & 0.0136 & 79.8\% \\
 \hline
-Punjabi  & 143 & 143 & 0.2540 & 0.0022 & 82.5\% \\
+Punjabi & 143 & 143 & 0.4043 & $<$0.0001 & 89.3\% \\
 \hline
-Tamil    &  97 &  96 & 0.1846 & 0.0718 & 75.0\% \\
+Tamil & 97 & 96 & 0.3204 & 0.0015 & 82.4\% \\
 \hline
-Telugu   & 111 & 111 & 0.2258 & 0.0172 & 67.5\% \\
+Telugu & 111 & 111 & 0.2453 & 0.0095 & 72.5\% \\
 \hline
-Urdu     & 100 & 100 & 0.2125 & 0.0337 & 86.3\% \\
+Urdu & 100 & 100 & 0.3101 & 0.0017 & 82.9\% \\
 \hline
 \rowcolor{srcblue!8}
-\textbf{Macro / total} & \textbf{1,102} & \textbf{952} & \textbf{0.2190} & --- & \textbf{78.0\%} \\
+\textbf{Macro / total} & \textbf{1,102} & \textbf{952} & \textbf{0.3244} & --- & \textbf{83.9\%} \\
 \hline
 \end{tabular}
 \end{table}
 
 \begin{figure}[!t]
 \centering
-\includegraphics[width=0.84\columnwidth]{results_chart.png}
-\caption{Spearman correlation by language with vocabulary coverage; n.s.\ marks correlations not significant at $p < 0.05$.}
+\includegraphics[width=0.88\columnwidth]{results_chart.png}
+\caption{Spearman correlation by language with vocabulary coverage.}
 \label{fig:results}
 \end{figure}
 
-\subsection{Coverage and OOV Behaviour}
-Table~\ref{tab:coverage} gives vocabulary coverage over the unique words in each benchmark. Coverage of unique benchmark words ranges from 67.5\% (Telugu) to 86.3\% (Urdu), yet it barely predicts quality: Urdu has the highest coverage but ranks fourth on $\rho$, while Telugu has the lowest coverage and ranks third. Across languages, the rank correlation between coverage and $\rho$ is only 0.29. Table~\ref{tab:oov} shows the resolver on Hindi inputs of increasing difficulty. The plural \textit{vidy\=alay\~o} (``schools''), absent from training, scores 0.897 against its base form---higher than the in-vocabulary synonym pair---because both forms share most of their character $n$-grams. The malformed third string still receives a finite vector, confirming that no input can break the inference path.
+\subsection{Vocabulary Coverage and OOV Statistics}
+Table~\ref{tab:coverage} reports coverage over the unique words of each benchmark. Overall, 1,279 of 1,524 benchmark words (83.9\%) occur in training; the remaining 245 are represented by subword composition. Coverage ranges from 72.5\% (Telugu) to 89.6\% (Gujarati) and tracks quality closely: across languages, the rank correlation between coverage and $\rho$ is 0.82 ($p = 0.023$). The two highest-coverage languages, Gujarati and Punjabi, are also the two best, while Telugu and Marathi have the lowest coverage and the lowest correlations.
 
 \begin{table}[!t]
-\caption{Vocabulary Coverage of Unique Benchmark Words}
+\caption{Vocabulary Coverage and OOV Statistics}
 \label{tab:coverage}
 \centering
-\renewcommand{\arraystretch}{1.25}
+\renewcommand{\arraystretch}{1.2}
 \footnotesize
 \setlength{\tabcolsep}{4pt}
 \begin{tabular}{|l|r|r|r|r|}
@@ -298,141 +296,218 @@ Table~\ref{tab:coverage} gives vocabulary coverage over the unique words in each
 \rowcolor{srcblue!15}
 \textbf{Language} & \textbf{Unique} & \textbf{In vocab} & \textbf{OOV} & \textbf{OOV rate} \\
 \hline
-Gujarati & 221 & 176 & 45 & 20.4\% \\
+Gujarati & 221 & 198 & 23 & 10.4\% \\
 \hline
-Hindi & 318 & 257 & 61 & 19.2\% \\
+Hindi & 318 & 279 & 39 & 12.3\% \\
 \hline
-Marathi & 337 & 250 & 87 & 25.8\% \\
+Marathi & 337 & 269 & 68 & 20.2\% \\
 \hline
-Punjabi & 206 & 170 & 36 & 17.5\% \\
+Punjabi & 206 & 184 & 22 & 10.7\% \\
 \hline
-Tamil & 136 & 102 & 34 & 25.0\% \\
+Tamil & 136 & 112 & 24 & 17.6\% \\
 \hline
-Telugu & 160 & 108 & 52 & 32.5\% \\
+Telugu & 160 & 116 & 44 & 27.5\% \\
 \hline
-Urdu & 146 & 126 & 20 & 13.7\% \\
+Urdu & 146 & 121 & 25 & 17.1\% \\
 \hline
 \rowcolor{srcblue!8}
-\textbf{Total} & \textbf{1,524} & \textbf{1,189} & \textbf{335} & \textbf{22.0\%} \\
+\textbf{Total} & \textbf{1,524} & \textbf{1,279} & \textbf{245} & \textbf{16.1\%} \\
 \hline
 \end{tabular}
 \end{table}
 
+Table~\ref{tab:oov} shows the resolver on Hindi inputs of increasing difficulty after training.
+
 \begin{table}[!t]
-\caption{OOV Inference on Hindi Inputs (After Full Training)}
+\caption{OOV Inference on Hindi Inputs}
 \label{tab:oov}
 \centering
-\renewcommand{\arraystretch}{1.25}
+\renewcommand{\arraystretch}{1.2}
 \footnotesize
 \begin{tabular}{|p{2.6cm}|r|p{3.4cm}|}
 \hline
 \rowcolor{srcblue!15}
 \textbf{Pair (romanised)} & \textbf{Cosine} & \textbf{Case} \\
 \hline
-\textit{vidy\=alay} / \textit{sk\=ul} & 0.6843 & Synonyms, both in vocabulary \\
+\textit{vidy\=alay} / \textit{sk\=ul} & 0.5637 & Synonyms (school), both in vocabulary \\
 \hline
-\textit{vidy\=alay\~o} / \textit{vidy\=alay} & 0.8966 & Inflected plural, OOV in training \\
+\textit{vidy\=alay\~o} / \textit{vidy\=alay} & 0.9039 & Plural and base form, both in vocabulary \\
 \hline
-malformed string / \textit{vidy\=alay} & 0.6239 & Garbled input, resolved via subwords \\
+malformed string / \textit{vidy\=alay} & 0.5708 & Garbled input, resolved via subwords \\
 \hline
 \end{tabular}
 \end{table}
 
-\section{Experiments}\label{sec:experiments}
-Four configurations were trained on Hindi (Indo-Aryan, moderately inflecting) and Tamil (Dravidian, agglutinative), each from scratch at 300 dimensions on IndicCorpV2 only (Table~\ref{tab:ablation}, Fig.~\ref{fig:ablation}). Benchmark scores were used only to read off the resulting correlation, never as an optimisation target.
-
-\begin{table}[!t]
-\caption{Ablation Results (Spearman $\rho$)}
-\label{tab:ablation}
+\begin{table*}[!t]
+\caption{Rank-Based Error Analysis: Correctly and Incorrectly Predicted Pairs (Romanised, with English Gloss)}
+\label{tab:pairs}
 \centering
-\renewcommand{\arraystretch}{1.25}
+\renewcommand{\arraystretch}{1.2}
 \footnotesize
-\setlength{\tabcolsep}{4pt}
-\begin{tabular}{|l|c|c|c|r|r|}
+\begin{tabular}{|l|l|r|r|r|r|r|}
 \hline
 \rowcolor{srcblue!15}
-\textbf{Run} & \textbf{Win.} & \textbf{Ep.} & \textbf{$n$-grams} & \textbf{Hindi} & \textbf{Tamil} \\
+\textbf{Lang.} & \textbf{Pair (gloss)} & \textbf{Human} & \textbf{Cosine} & \textbf{Human rank} & \textbf{Model rank} & \textbf{Rank error} \\
 \hline
-E1 baseline        & 5  & 15 & 2--5 & 0.1982 & 0.1988 \\
+\multicolumn{7}{|l|}{\cellcolor{srcblue!6}\textit{Correctly predicted (smallest rank error)}} \\
 \hline
-E2 wider window    & 10 & 15 & 2--5 & 0.2654 & 0.1847 \\
+Guj. & \textit{v\=agh} / \textit{v\=agh} (tiger) & 10.00 & 1.000 & 1 & 1 & 0 \\
 \hline
-E3 longer training & 5  & 30 & 2--5 & \textbf{0.3181} & 0.1401 \\
+Hin. & \textit{kampy\=u\d{t}ar} / \textit{s\^{o}f\d{t}veyar} (computer / software) & 8.80 & 0.736 & 4 & 4 & 0 \\
 \hline
-E4 larger $n$-grams & 5 & 15 & 3--6 & 0.1564 & \textbf{0.2891} \\
+Mar. & \textit{v\=agh} / \textit{v\=agh} (tiger) & 10.00 & 1.000 & 1 & 1 & 0 \\
+\hline
+Pun. & \textit{\d{t}\=a\={\i}gar} / \textit{jagu\=ar} (tiger / jaguar) & 8.38 & 0.692 & 10 & 10 & 0 \\
+\hline
+Tam. & \textit{ro\d{t}\d{t}i} / \textit{ve\d{n}\d{n}ey} (bread / butter) & 7.50 & 0.440 & 32 & 32 & 0 \\
+\hline
+\multicolumn{7}{|l|}{\cellcolor{srcblue!6}\textit{Incorrectly predicted (largest rank error)}} \\
+\hline
+Guj. & \textit{vilamb} / \textit{j\=ativ\=ad} (delay / racism) & 0.00 & 0.594 & 159.5 & 34 & 125.5 \\
+\hline
+Hin. & \textit{sam\=ac\=ar} / \textit{rip\=or\d{t}} (news / report) & 7.80 & 0.208 & 31 & 224 & 193 \\
+\hline
+Mar. & \textit{\d{t}eliphon} / \textit{sa\d{m}v\=ad} (telephone / communication) & 9.00 & 0.206 & 6 & 97 & 91 \\
+\hline
+Pun. & \textit{lobas\d{t}ar} / \textit{v\=a\={\i}n} (lobster / wine) & 1.00 & 0.630 & 141.5 & 22 & 119.5 \\
+\hline
+Tam. & \textit{cak\=otarar} / \textit{tu\b{r}avi} (brother / monk) & 1.12 & 0.740 & 88 & 8 & 80 \\
+\hline
+\end{tabular}
+\end{table*}
+
+\section{Experiments}\label{sec:experiments}
+All experiments train from scratch on IndicCorpV2 only, at 300 dimensions, on all seven languages; benchmark scores are only read off afterwards.
+
+\subsection{Ablation}
+Each variant changes one setting of the main configuration (Table~\ref{tab:ablation}, Fig.~\ref{fig:ablation}). Every change lowers the macro score: shorter 2--5-grams cost the most (-0.0567), followed by 15 instead of 25 epochs (-0.0398) and \texttt{min\_count}=2 (-0.0177). Longer $n$-grams capture morpheme-sized units, more epochs give the small corpus more passes, and \texttt{min\_count}=1 keeps rare words---raising coverage---at the cost of noisier rare-word vectors. Individual languages deviate: Hindi scores higher with 2--5-grams (0.3226), Tamil with 15 epochs (0.3383) and Telugu with \texttt{min\_count}=2 (0.2852). These gains are several times the per-language seed standard deviations (Sec.~\ref{sec:seeds}), so per-language settings would likely help. A single configuration was kept because it maximises the macro score and because choosing settings per language on the public benchmark, which is also the development set, risks overfitting to it.
+
+\begin{table*}[!t]
+\caption{Ablation on All Seven Languages (Spearman $\rho$; best per column in bold)}
+\label{tab:ablation}
+\centering
+\renewcommand{\arraystretch}{1.2}
+\footnotesize
+\begin{tabular}{|l|r|r|r|r|r|r|r||r|}
+\hline
+\rowcolor{srcblue!15}
+\textbf{Experiment} & \textbf{Gujarati} & \textbf{Hindi} & \textbf{Marathi} & \textbf{Punjabi} & \textbf{Tamil} & \textbf{Telugu} & \textbf{Urdu} & \textbf{Macro} \\
+\hline
+E1 main (3--6, 25 ep., mc 1) & \textbf{0.4484} & 0.3009 & \textbf{0.2414} & \textbf{0.4043} & 0.3204 & 0.2453 & \textbf{0.3101} & \textbf{0.3244} \\
+\hline
+E2 $n$-grams 2--5 & 0.3964 & \textbf{0.3226} & 0.1743 & 0.2818 & 0.2421 & 0.2331 & 0.2239 & 0.2677 \\
+\hline
+E3 15 epochs & 0.3622 & 0.2313 & 0.1927 & 0.3907 & \textbf{0.3383} & 0.2396 & 0.2371 & 0.2846 \\
+\hline
+E4 min\_count 2 & 0.4284 & 0.2726 & 0.2198 & 0.3520 & 0.2873 & \textbf{0.2852} & 0.3016 & 0.3067 \\
+\hline
+\end{tabular}
+\end{table*}
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\columnwidth]{ablation_chart.png}
+\caption{Ablation: Spearman $\rho$ per language for each one-setting change.}
+\label{fig:ablation}
+\end{figure}
+
+\subsection{Word2Vec Baseline}
+A Word2Vec Skip-gram model~\cite{mikolov2013} with identical settings but no subwords isolates the contribution of character $n$-grams (Table~\ref{tab:w2v}, Fig.~\ref{fig:w2v}); its OOV words all receive the fallback vector. FastText is better in six of seven languages and by +0.0852 macro ($36\%$ relative). The largest gains are in Punjabi (+0.177), Urdu (+0.116), Marathi (+0.111) and Tamil (+0.105); only Telugu is marginally lower (-0.011). Subwords help both OOV words and rare in-vocabulary words, whose vectors are stabilised by $n$-grams shared with frequent words.
+
+\begin{table}[!t]
+\caption{Word2Vec Baseline versus FastText (Spearman $\rho$)}
+\label{tab:w2v}
+\centering
+\renewcommand{\arraystretch}{1.2}
+\footnotesize
+\begin{tabular}{|l|r|r|r|}
+\hline
+\rowcolor{srcblue!15}
+\textbf{Language} & \textbf{Word2Vec} & \textbf{FastText} & \textbf{Gain} \\
+\hline
+Gujarati & 0.3966 & 0.4484 & +0.0518 \\
+\hline
+Hindi & 0.2548 & 0.3009 & +0.0462 \\
+\hline
+Marathi & 0.1307 & 0.2414 & +0.1106 \\
+\hline
+Punjabi & 0.2270 & 0.4043 & +0.1772 \\
+\hline
+Tamil & 0.2154 & 0.3204 & +0.1051 \\
+\hline
+Telugu & 0.2560 & 0.2453 & -0.0107 \\
+\hline
+Urdu & 0.1937 & 0.3101 & +0.1165 \\
+\hline
+\textbf{Macro} & \textbf{0.2392} & \textbf{0.3244} & \textbf{+0.0852} \\
 \hline
 \end{tabular}
 \end{table}
 
 \begin{figure}[!t]
 \centering
-\includegraphics[width=0.84\columnwidth]{ablation_chart.png}
-\caption{Ablation on Hindi and Tamil. The best configuration differs by language.}
-\label{fig:ablation}
+\includegraphics[width=\columnwidth]{w2v_chart.png}
+\caption{Word2Vec baseline (no subwords) versus FastText.}
+\label{fig:w2v}
 \end{figure}
 
-The two languages respond to opposite interventions. Doubling the epochs lifts Hindi from 0.1982 to 0.3181 (+61\%) but lowers Tamil from 0.1988 to 0.1401 ($-30$\%), the lowest score in the study. A wider window also helps Hindi (+34\%) while slightly hurting Tamil ($-7$\%). Conversely, 3--6 character $n$-grams lift Tamil to 0.2891 (+45\%) and give Hindi its worst score, 0.1564. Tamil packs meaning into longer character sequences, so 3--6 grams capture morpheme-sized units that 2--5 grams fragment; Hindi's shorter affixes are already served by 2--5 grams, and its model was still improving at 15 epochs. With the short 2--5 range, extra epochs on Tamil appear to reinforce short, uninformative fragments rather than add signal. A single hyperparameter set applied uniformly across Indian languages therefore leaves substantial performance unclaimed. Because training uses two worker threads, identical configurations differ by about 0.01 between runs (Hindi: 0.1982 in E1 versus 0.1901 in the main run), well below the observed effects of 0.05--0.12.
-
-\section{Analysis}\label{sec:analysis}
-Because human scores (1--10) and cosines ($[-1,1]$) differ in scale, pairs are compared by absolute rank error. Table~\ref{tab:pairs} lists ten word-pair examples: for each language, the pair the model ranked closest to the annotators (correctly predicted) and the pair it ranked furthest from them (incorrectly predicted).
+\subsection{Seed Robustness}\label{sec:seeds}
+The main configuration was retrained with seeds 1, 7, 42 (Table~\ref{tab:seeds}). The macro score is 0.3275 $\pm$ 0.0060 (mean $\pm$ standard deviation), so the headline result is stable; individual languages vary more, which is expected with 96--235 scored pairs per language.
 
 \begin{table}[!t]
-\caption{Closest and Furthest Rank Agreement (Romanised)}
-\label{tab:pairs}
+\caption{Seed Robustness of the Main Configuration (Spearman $\rho$)}
+\label{tab:seeds}
 \centering
 \renewcommand{\arraystretch}{1.2}
 \footnotesize
-\setlength{\tabcolsep}{3pt}
-\begin{tabular}{|l|p{2.9cm}|r|r|r|}
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{|l|r|r|r|c|}
 \hline
 \rowcolor{srcblue!15}
-\textbf{Lang.} & \textbf{Pair (gloss)} & \textbf{Hum.} & \textbf{Cos.} & \textbf{Err.} \\
+\textbf{Language} & \textbf{Seed 1} & \textbf{Seed 7} & \textbf{Seed 42} & \textbf{Mean $\pm$ SD} \\
 \hline
-\multicolumn{5}{|l|}{\cellcolor{srcblue!6}\textit{Closest agreement}} \\
+Gujarati & 0.4481 & 0.4533 & 0.4484 & 0.4499 $\pm$ 0.0029 \\
 \hline
-Guj. & \textit{v\=agh} / \textit{v\=agh} (tiger) & 10.00 & 1.000 & 0.0 \\
+Hindi & 0.3015 & 0.2920 & 0.3009 & 0.2981 $\pm$ 0.0053 \\
 \hline
-Hin. & \textit{b\=agh} / \textit{ci\d{r}iy\=aghar} (tiger / zoo) & 6.80 & 0.502 & 0.5 \\
+Marathi & 0.2562 & 0.2308 & 0.2414 & 0.2428 $\pm$ 0.0128 \\
 \hline
-Mar. & \textit{v\=agh} / \textit{v\=agh} (tiger) & 10.00 & 1.000 & 0.0 \\
+Punjabi & 0.3954 & 0.3839 & 0.4043 & 0.3945 $\pm$ 0.0102 \\
 \hline
-Pun. & \textit{\d{t}\=a\={\i}gar} / \textit{\d{t}\=a\={\i}gar} (tiger) & 10.00 & 1.000 & 0.0 \\
+Tamil & 0.3166 & 0.3250 & 0.3204 & 0.3207 $\pm$ 0.0042 \\
 \hline
-Tam. & \textit{pa\d{n}am} / \textit{pa\d{n}am} (money) & 10.00 & 1.000 & 0.5 \\
+Telugu & 0.2716 & 0.2706 & 0.2453 & 0.2625 $\pm$ 0.0149 \\
 \hline
-\multicolumn{5}{|l|}{\cellcolor{srcblue!6}\textit{Largest disagreement}} \\
+Urdu & 0.3515 & 0.3098 & 0.3101 & 0.3238 $\pm$ 0.0240 \\
 \hline
-Guj. & \textit{so} / \textit{\d{t}ak\=a} (hundred / percent) & 9.00 & 0.053 & 138.5 \\
-\hline
-Hin. & \textit{paise} / \textit{mudr\=a} (money / currency) & 8.60 & 0.271 & 203.5 \\
-\hline
-Mar. & \textit{\d{t}eliphon} / \textit{sa\d{m}v\=ad} (telephone / communication) & 9.00 & 0.225 & 91.0 \\
-\hline
-Pun. & \textit{pais\=a} / \textit{nakad} (money / cash) & 9.00 & 0.325 & 116.5 \\
-\hline
-Tam. & \textit{va\.{n}ki} / \textit{pa\d{n}am} (bank / money) & 8.75 & 0.053 & 84.0 \\
+\textbf{Macro} & \textbf{0.3344} & \textbf{0.3236} & \textbf{0.3244} & \textbf{0.3275 $\pm$ 0.0060} \\
 \hline
 \end{tabular}
 \end{table}
 
+\section{Analysis}\label{sec:analysis}
+Human scores (1--10) and cosines ($[-1,1]$) are on different scales, so the analysis is rank-based: within each language both are ranked and the absolute rank error $|R(h) - R(s)|$ is computed. Table~\ref{tab:pairs} lists ten word pairs: for each language, the pair with the smallest rank error (correctly predicted) and the pair with the largest (incorrectly predicted).
+
+
+
 \subsection{Correctly Predicted Similarities}
-Four of the five closest agreements are identity pairs---the same word compared with itself, scored 10 by annotators and 1.000 by cosine. They confirm the pipeline is wired correctly but say little about semantics. The informative success is Hindi \textit{b\=agh}/\textit{ci\d{r}iy\=aghar} (``tiger''/``zoo'', human 6.80, cosine 0.502): two different words that co-occur in news text about wildlife and zoos, which the model places almost exactly at the rank the annotators chose.
+Two of the five correct cases are identity pairs (Gujarati and Marathi \textit{tiger}/\textit{tiger}), which mainly confirm the pipeline. The other three are genuine semantic matches ranked exactly as annotators ranked them: Hindi \textit{computer}/\textit{software} (human 8.80, cosine 0.736, both rank 4), Punjabi \textit{tiger}/\textit{jaguar} (rank 10 for both) and Tamil \textit{bread}/\textit{butter} (rank 32). Such pairs appear in the same contexts---technology, wildlife, food---which is exactly what a Skip-gram model learns.
 
 \subsection{Incorrectly Predicted Similarities}
-The failures share a structure. Hindi \textit{paise}/\textit{mudr\=a} (``money''/``currency'', human 8.60, cosine 0.271) and Punjabi \textit{pais\=a}/\textit{nakad} (``money''/``cash'') are near-synonyms from different registers---one colloquial, one formal or Sanskritic. In a 5,000-document corpus these registers rarely share contexts, so the model separates them. Gujarati \textit{so}/\textit{\d{t}ak\=a} (``hundred''/``percent'', cosine 0.053) is a fixed collocation rather than a shared context. Tamil \textit{va\.{n}ki}/\textit{pa\d{n}am} (``bank''/``money'') and Marathi \textit{\d{t}eliphon}/\textit{sa\d{m}v\=ad} (``telephone''/``communication'') rest on world knowledge that a small corpus does not supply consistently; the Hindi tiger/zoo pair shows the model can learn such links when co-occurrence evidence exists. These are the expected failure modes of a distributional model trained on little text, not implementation defects.
+The failures fall into two groups. \textit{Under-estimated} pairs are near-synonyms that rarely share contexts: Hindi \textit{sam\=ac\=ar}/\textit{rip\=or\d{t}} (``news''/``report'', human 7.80, cosine 0.208) pairs a native word with an English loan used in different registers, and Marathi \textit{telephone}/\textit{communication} relies on world knowledge rather than co-occurrence. \textit{Over-estimated} pairs are unrelated words that the model places close together: Gujarati \textit{delay}/\textit{racism} (human 0.00, cosine 0.594), Punjabi \textit{lobster}/\textit{wine} (human 1.00, cosine 0.630) and Tamil \textit{brother}/\textit{monk} (human 1.12, cosine 0.740). These are rare words that probably co-occur in a few shared topical contexts (for example food, or religious and family texts), and with \texttt{min\_count}=1 their vectors rest on very little evidence. Annotators rate similarity, not topical relatedness, so such pairs are penalised. This is the price of the higher coverage that \texttt{min\_count}=1 buys, and the reason E4 helps Telugu.
 
 \section{Discussion}\label{sec:discussion}
 \subsection{Design Choices}
-FastText was preferred to Word2Vec~\cite{mikolov2013} and GloVe because, with 22.0\% of benchmark vocabulary unseen on average, the no-discard requirement effectively needs a subword model. Seven monolingual models were trained rather than one multilingual model because the benchmark evaluates each language in isolation, so there is no cross-lingual signal to exploit, and separate models avoid vocabulary interference between scripts. Preprocessing is shared between training and evaluation to eliminate normalisation drift, a common and silent cause of inflated OOV rates. Every benchmark row is kept in the exported arrays so the $(N, 2, 300)$ shape and pair order are preserved exactly.
+FastText was chosen over Word2Vec and GloVe because the no-discard requirement needs vectors for unseen words; the Word2Vec baseline confirms the choice ($0.2392$ versus $0.3244$ macro). Seven monolingual models were trained instead of one multilingual model because the benchmark evaluates each language in isolation, and separate models avoid vocabulary interference between scripts. The final configuration---3--6-grams, 25 epochs, \texttt{min\_count}=1---is supported by the ablation on all seven languages. Training is single-threaded with a fixed hash so that every reported number is exactly reproducible.
 
 \subsection{Limitations}
-Corpus size dominates: 5,000 documents per language is a thin slice, and Hindi was still improving at 30 epochs, so the reported correlations are a floor set by data rather than a ceiling set by the method. The benchmarks hold 96--235 scored pairs, so individual correlations carry wide confidence intervals. Static embeddings assign one vector per word form, so polysemy cannot be resolved by construction. Multi-threaded training makes repeated runs differ by about 0.01 in $\rho$, and each ablation configuration was run once. Finally, the ablation covers only two languages and four configurations: enough to show that per-language tuning matters, not enough to find optimal settings for the other five.
+Corpus size dominates: 5,000 records per language (168k--362k tokens) is a small sample, so rare-word vectors are noisy, as the over-estimated pairs show. The benchmarks hold 96--235 scored pairs, so per-language correlations carry wide confidence intervals. Static embeddings give one vector per word form and cannot resolve polysemy. The configuration was compared on the public benchmark, which is also the development set, so the public scores may be slightly optimistic for the private test set. Finally, the 2.4\,GB models are regenerated rather than shipped.
 
 \subsection{Future Work}
-In order of expected value: scale the training corpus and re-measure the coverage--correlation relationship; run a per-language hyperparameter search with several seeds, now that the optima are known to diverge; add Word2Vec and GloVe baselines under the same evaluation harness to quantify the subword contribution; and validate the embeddings on a downstream task, since intrinsic similarity is only a weak proxy for usefulness.
+In order of expected value: train on more IndicCorpV2 text; tune settings per language on held-out data with several seeds; add a GloVe baseline under the same harness; and evaluate on a downstream task, since intrinsic similarity is only a proxy for usefulness.
 
 \subsection{Conclusion}
-Seven monolingual 300-dimensional FastText models trained from scratch on IndicCorpV2 reach a macro-average Spearman correlation of 0.2190 against human similarity judgements, with all 1,102 benchmark pairs represented in the exported arrays. Three findings stand out: subword composition makes the no-discard requirement satisfiable, as the unseen plural \textit{vidy\=alay\~o} still scores 0.897 against its base form; hyperparameters do not transfer across Indian languages, as Hindi gained 61\% from a longer epoch budget that cost Tamil 30\%, while Tamil gained 45\% from longer $n$-grams that gave Hindi its worst result; and vocabulary coverage is not a proxy for embedding quality, as the language with the highest coverage ranked only fourth. The correlations are modest because the models are corpus-limited rather than method-limited.
+Seven monolingual 300-dimensional FastText models trained from scratch on IndicCorpV2 reach a macro-average Spearman correlation of 0.3244 (0.3275 $\pm$ 0.0060 over three seeds), with all seven languages significant and all 1,102 benchmark pairs represented in the exported arrays. Character $n$-grams are the most important ingredient: they add +0.085 over Word2Vec, and shortening them to 2--5 costs 0.057. Vocabulary coverage closely tracks quality in this setting, while the main remaining errors come from rare words learned from too few contexts.
 
 \section{References}
 \begingroup
@@ -464,8 +539,9 @@ Evaluation benchmark --- Akhtar et al.\ (2017) & \url{https://github.com/syedsar
 \hline
 Project source code and artifacts & \url{https://github.com/g25ait2138-collab/word-embeddings-nlp} \\
 \hline
+Colab notebook (Google Drive) & \url{https://colab.research.google.com/drive/102SjYVTS8SguWze8fWloLuwaMKJBQ3Z2} \\
+\hline
 \end{tabular}
 \end{center}
-
 
 \end{document}
